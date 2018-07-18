@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.List;
+
+import com.jayway.jsonpath.JsonPath;
 import org.kgrid.shelf.domain.KnowledgeObject;
 import org.kgrid.shelf.repository.CompoundDigitalObjectStore;
 import org.slf4j.Logger;
@@ -61,6 +64,22 @@ public class ServiceDescriptionService {
     } else {
       return null;
     }
+  }
+
+  public JsonNode getInputSchema(KnowledgeObject knowledgeObject) {
+      ObjectNode objectNode = (ObjectNode) loadServiceDescription(knowledgeObject);
+      if (objectNode.has(SERVICE_DESCRIPTION_PATHS)) {
+          JsonNode node = objectNode.get(SERVICE_DESCRIPTION_PATHS);
+          List<JsonNode> schemas = JsonPath.parse(node).read("$..schema");
+          if(schemas.size()>0) {
+              return schemas.get(0);
+          } else {
+              return null;
+          }
+
+      } else {
+          return null;
+      }
   }
 
 }

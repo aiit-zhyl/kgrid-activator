@@ -4,6 +4,13 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.fge.jsonschema.core.exceptions.ProcessingException;
+import com.github.fge.jsonschema.core.report.ProcessingReport;
+import com.github.fge.jsonschema.main.JsonSchema;
+import com.github.fge.jsonschema.main.JsonSchemaFactory;
 import org.kgrid.activator.ActivatorException;
 import org.kgrid.activator.EndPoint;
 import org.kgrid.activator.EndPointResult;
@@ -61,13 +68,39 @@ public class ActivationController {
 
         EndPoint endPoint = service.getEndpoints().get(key);
 
-        EndPointResult<Object> result = new EndPointResult<>(endPoint.executeEndPoint(inputs));
-        result.getInfo().put("inputs", inputs);
-        result.getInfo().put("ko", naan + "/" + name + "/" + version);
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode inputsNode = mapper.valueToTree(inputs);
 
-        return result;
+        JsonNode inputSchema = endPoint.getInputSchema();
+
+        final JsonSchemaFactory factory = JsonSchemaFactory.byDefault();
+
+        final JsonSchema schema = factory.getJsonSchema(inputSchema);
+
+        ProcessingReport report;
+
+        report = schema.validate(inputsNode);
+        System.out.println(report);
+
+        if(report.isSuccess()) {
+
+          EndPointResult<Object> result = new EndPointResult<>(endPoint.executeEndPoint(inputs));
+          result.getInfo().put("inputs", inputs);
+          result.getInfo().put("ko", naan + "/" + name + "/" + version);
+
+          return result;
+
+        } else {
+
+//           TODO: Get the message from ProcessingReport for the level-error
+          throw new ActivatorException("Exception for endpoint " + key + " " + "Invalid Inputs");
+
+        }
 
       } catch (AdapterException e) {
+        log.error("Exception " + e);
+        throw new ActivatorException("Exception for endpoint " + key + " " + e.getMessage());
+      } catch (ProcessingException e) {
         log.error("Exception " + e);
         throw new ActivatorException("Exception for endpoint " + key + " " + e.getMessage());
       }

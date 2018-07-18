@@ -163,7 +163,9 @@ public class ActivationService {
 
      String baseKOPath = getKnowleledgeObjectPath(knowledgeObject);
 
-     EndPoint endPoint =  new EndPoint(executor, endPointPath, baseKOPath);
+     JsonNode inputSchema = serviceDescriptionService.getInputSchema(knowledgeObject);
+
+     EndPoint endPoint =  new EndPoint(executor, endPointPath, baseKOPath, inputSchema);
 
      return endPoint;
 
