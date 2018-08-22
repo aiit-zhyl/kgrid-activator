@@ -80,9 +80,9 @@ public class ActivationController {
         ProcessingReport report;
 
         report = schema.validate(inputsNode);
-        System.out.println(report);
+        // System.out.println(report);
 
-        if(report.isSuccess()) {
+        // if(report.isSuccess()) {
 
           EndPointResult<Object> result = new EndPointResult<>(endPoint.executeEndPoint(inputs));
           result.getInfo().put("inputs", inputs);
@@ -90,12 +90,12 @@ public class ActivationController {
 
           return result;
 
-        } else {
+        // } else {
 
 //           TODO: Get the message from ProcessingReport for the level-error
-          throw new ActivatorException("Exception for endpoint " + key + " " + "Invalid Inputs");
+          // throw new ActivatorException("Exception for endpoint " + key + " " + "Invalid Inputs");
 
-        }
+        // }
 
       } catch (AdapterException e) {
         log.error("Exception " + e);
