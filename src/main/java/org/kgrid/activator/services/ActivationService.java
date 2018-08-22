@@ -1,7 +1,11 @@
 package org.kgrid.activator.services;
 
+import static java.nio.file.StandardWatchEventKinds.*;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.Objects;
 import org.kgrid.activator.ActivatorException;
 import java.nio.file.Path;
@@ -17,6 +21,7 @@ import org.kgrid.adapter.api.Executor;
 import org.kgrid.shelf.domain.ArkId;
 import org.kgrid.shelf.domain.KnowledgeObject;
 import org.kgrid.shelf.repository.CompoundDigitalObjectStore;
+import org.kgrid.shelf.repository.FilesystemCDOWatcher;
 import org.kgrid.shelf.repository.KnowledgeObjectRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +45,8 @@ public class ActivationService {
   KnowledgeObjectRepository knowledgeObjectRepository;
 
   private HashMap<String, EndPoint> endpoints = new HashMap<String, EndPoint>();
+
+  private FilesystemCDOWatcher watcher;
 
   public ActivationService() {
   }
@@ -89,6 +96,7 @@ public class ActivationService {
     //Load all of the ko including all versions
 
     endpoints.clear();
+    knowledgeObjectsFound = 0;
 
     Map<ArkId, Map<String, ObjectNode>> koList = knowledgeObjectRepository.findAll();
 
@@ -121,9 +129,26 @@ public class ActivationService {
     }
 
   }
+
+  // Reloads the whole shelf looking for endpoints when any change is made to a file on the shelf
+  // In the future can change to load/delete/reload only changed KOs
+  public void startEndpointWatcher() throws IOException {
+    if(watcher != null ) {
+      return;
+    }
+    watcher = new FilesystemCDOWatcher();
+    watcher.registerAll(Paths.get(cdoStore.getAbsoluteLocation(null)),
+        ENTRY_MODIFY, ENTRY_CREATE, ENTRY_DELETE);
+    watcher.addFileListener((path, eventKind) -> {
+      loadAndActivateEndPoints();
+      log.info("File change in CDO Store: " + path + " -> " + eventKind.name());
+    });
+    new Thread(watcher).start();
+  }
+
   public String getKnowleledgeObjectPath(KnowledgeObject knowledgeObject) {
 
-    return knowledgeObject.getArkId().getFedoraPath().replace('-', '/') + "/" + knowledgeObject
+    return knowledgeObject.getArkId().getAsSimpleArk().replace('-', '/') + "/" + knowledgeObject
         .version();
   }
 
@@ -144,19 +169,19 @@ public class ActivationService {
 
     Path modelPath = knowledgeObject.getModelDir();
 
-
     validateEndPoint(knowledgeObject);
 
-    JsonNode endPointMetadata = knowledgeObject.getModelMetadata();
+    JsonNode modelMetadata = knowledgeObject.getModelMetadata();
 
-   if (adapters.containsKey(endPointMetadata.get("adapterType").asText().toUpperCase())){
+   if (adapters.containsKey(modelMetadata.get("adapterType").asText().toUpperCase())){
 
-     Adapter adapter = adapters.get(endPointMetadata.get("adapterType").asText().toUpperCase());
+     Adapter adapter = adapters.get(modelMetadata.get("adapterType").asText().toUpperCase());
 
-     //TODO  Assuming function name will be used as endpoint will change :-)
-     String functionName = endPointMetadata.get("functionName").asText();
+     String functionName = modelMetadata.get("functionName").asText();
 
-     Executor executor = adapter.activate(modelPath.resolve("resource"), functionName);
+     Path resource = modelPath.resolve(modelMetadata.get("resource").asText());
+
+     Executor executor = adapter.activate(resource, functionName);
 
      //TODO  Stupid
      String endPointPath = getEndPointPath(knowledgeObject);
@@ -171,7 +196,7 @@ public class ActivationService {
 
    } else {
 
-     throw new ActivatorException( endPointMetadata.get("adapterType") + " adapter type found");
+     throw new ActivatorException( modelMetadata.get("adapterType") + " adapter type found");
 
    }
 
@@ -196,7 +221,6 @@ public class ActivationService {
           serviceDescriptionService.loadServiceDescription(knowledgeObject), "Service Description is Required");
       Objects.requireNonNull(
           serviceDescriptionService.findPath(knowledgeObject),"Service Description Paths are Required");
-
     } catch (NullPointerException exception){
       throw new ActivatorException(exception.getMessage());
     }
