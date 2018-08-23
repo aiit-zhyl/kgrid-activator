@@ -68,34 +68,29 @@ public class ActivationController {
 
         EndPoint endPoint = service.getEndpoints().get(key);
 
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode inputsNode = mapper.valueToTree(inputs);
 
-        JsonNode inputSchema = endPoint.getInputSchema();
+        if( endPoint.getInputSchema()!=null) {
+          ObjectMapper mapper = new ObjectMapper();
 
-        final JsonSchemaFactory factory = JsonSchemaFactory.byDefault();
+          JsonNode inputsNode = mapper.valueToTree(inputs);
 
-        final JsonSchema schema = factory.getJsonSchema(inputSchema);
+          JsonNode inputSchema = endPoint.getInputSchema();
 
-        ProcessingReport report;
+          final JsonSchemaFactory factory = JsonSchemaFactory.byDefault();
 
-        report = schema.validate(inputsNode);
-        // System.out.println(report);
+          final JsonSchema schema = factory.getJsonSchema(inputSchema);
 
-        // if(report.isSuccess()) {
+          ProcessingReport report;
+
+          report = schema.validate(inputsNode);
+
+        }
 
           EndPointResult<Object> result = new EndPointResult<>(endPoint.executeEndPoint(inputs));
           result.getInfo().put("inputs", inputs);
           result.getInfo().put("ko", naan + "/" + name + "/" + version);
 
           return result;
-
-        // } else {
-
-//           TODO: Get the message from ProcessingReport for the level-error
-          // throw new ActivatorException("Exception for endpoint " + key + " " + "Invalid Inputs");
-
-        // }
 
       } catch (AdapterException e) {
         log.error("Exception " + e);
