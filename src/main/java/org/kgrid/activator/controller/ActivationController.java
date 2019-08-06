@@ -1,8 +1,10 @@
 package org.kgrid.activator.controller;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.kgrid.activator.ActivatorException;
 import org.kgrid.activator.EndPointResult;
 import org.kgrid.activator.services.ActivationService;
@@ -33,6 +35,9 @@ public class ActivationController {
   @Autowired
   private ActivationService activationService;
 
+  @Autowired
+  private MeterRegistry registry;
+
   @PostMapping(consumes = {MediaType.APPLICATION_JSON_VALUE},
       value = {"/{naan}/{name}/{implementation}/{endpoint}"},
       produces = {MediaType.APPLICATION_JSON_VALUE})
@@ -43,6 +48,7 @@ public class ActivationController {
       @PathVariable String implementation ,
       @PathVariable String endpoint,
       @RequestBody Object inputs) {
+    long startTime = System.nanoTime();
     final String key = naan + "-" + name + "/" + implementation + "/" + endpoint;
 
     try {
@@ -51,6 +57,11 @@ public class ActivationController {
     } catch (AdapterException e) {
       log.error("Exception " + e);
       throw new ActivatorException("Exception for endpoint " + key + " " + e.getMessage());
+    } finally {
+      // Metric reporting
+      long endTime = System.nanoTime();
+      registry.timer("endpoint_request_time","id", key).record(endTime - startTime, TimeUnit.NANOSECONDS);
+      registry.timer("endpoint_request_time_detail","id", key, "inputs", inputs.toString()).record(endTime - startTime, TimeUnit.NANOSECONDS);
     }
   }
 
